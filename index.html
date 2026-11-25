@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>EPCOT Driver Pickup Guide — J Driver</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #e9eef2;
+      color: #1c1e21;
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+      user-select: none;
+    }
+
+    /* Full-Screen Interactive Map Canvas */
+    #map-viewport {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      cursor: grab;
+      background: #e8ecef;
+    }
+
+    #map-viewport:active {
+      cursor: grabbing;
+    }
+
+    #map-transform {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 1400px;
+      height: 1100px;
+      transform-origin: 0 0;
+      transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    #map-transform.no-transition {
+      transition: none;
+    }
+
+    /* Top Floating Stack: Signage Alert + Driver Pill */
+    .top-stack {
+      position: fixed;
+      top: 14px;
+      left: 14px;
+      right: 14px;
+      max-width: 440px;
+      margin: 0 auto;
+      z-index: 30;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .signage-banner {
+      background: rgba(255, 251, 235, 0.96);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid #f59e0b;
+      border-radius: 14px;
+      padding: 9px 13px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12.5px;
+      line-height: 1.35;
+      color: #78350f;
+    }
+
+    .signage-icon {
+      flex-shrink: 0;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: #fef3c7;
+      color: #d97706;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 14px;
+    }
+
+    .driver-card {
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-radius: 18px;
+      padding: 11px 15px;
+      box-shadow: 0 6px 22px rgba(0, 0, 0, 0.11);
+      border: 1px solid rgba(255, 255, 255, 0.9);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .driver-left {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+    }
+
+    .driver-avatar {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #1a73e8, #0d47a1);
+      color: #fff;
+      font-weight: 700;
+      font-size: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      box-shadow: 0 2px 6px rgba(26, 115, 232, 0.35);
+    }
+
+    .driver-meta h2 {
+      font-size: 15px;
+      font-weight: 700;
+      color: #111827;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      background: #10b981;
+      border-radius: 50%;
+      display: inline-block;
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.22);
+    }
+
+    .driver-meta p {
+      font-size: 12.5px;
+      color: #4b5563;
+      margin-top: 2px;
+    }
+
+    .walk-badge {
+      background: #eff6ff;
+      color: #1d4ed8;
+      font-weight: 700;
+      font-size: 12px;
+      padding: 6px 10px;
+      border-radius: 12px;
+      text-align: center;
+      flex-shrink: 0;
+      border: 1px solid #dbeafe;
+    }
+
+    /* Map Controls (Right Side) */
+    .map-controls {
+      position: fixed;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 25;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .ctrl-group {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(12px);
+      border-radius: 14px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .ctrl-btn {
+      width: 42px;
+      height: 42px;
+      border: none;
+      background: transparent;
+      font-size: 20px;
+      font-weight: 500;
+      color: #1f2937;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s;
+    }
+
+    .ctrl-btn:hover {
+      background: #f3f4f6;
+    }
+
+    .ctrl-btn:active {
+      background: #e5e7eb;
+    }
+
+    .ctrl-divider {
+      height: 1px;
+      background: #e5e7eb;
+    }
+
+    /* Route Option Toggle Pill */
+    .route-switcher {
+      position: fixed;
+      bottom: 184px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 25;
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(12px);
+      padding: 4px;
+      border-radius: 999px;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
+      display: flex;
+      gap: 4px;
+      border: 1px solid rgba(0,0,0,0.06);
+    }
+
+    .route-tab {
+      border: none;
+      background: transparent;
+      padding: 6px 13px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #4b5563;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .route-tab.active {
+      background: #1a73e8;
+      color: #ffffff;
+      box-shadow: 0 2px 6px rgba(26, 115, 232, 0.3);
+    }
+
+    /* Bottom Step-by-Step Navigation Card */
+    .bottom-sheet {
+      position: fixed;
+      bottom: 14px;
+      left: 14px;
+      right: 14px;
+      max-width: 440px;
+      margin: 0 auto;
+      z-index: 30;
+      background: rgba(255, 255, 255, 0.96);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border-radius: 22px;
+      padding: 15px 17px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.14);
+      border: 1px solid rgba(255, 255, 255, 0.95);
+    }
+
+    .step-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .step-pill {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #1a73e8;
+      background: #e8f0fe;
+      padding: 3px 9px;
+      border-radius: 8px;
+    }
+
+    .step-dots {
+      display: flex;
+      gap: 6px;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #d1d5db;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .dot.active {
+      width: 20px;
+      border-radius: 6px;
+      background: #1a73e8;
+    }
+
+    .step-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #111827;
+      margin-bottom: 4px;
+    }
+
+    .step-desc {
+      font-size: 13px;
+      color: #374151;
+      line-height: 1.4;
+      margin-bottom: 12px;
+    }
+
+    .step-actions {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn-nav {
+      flex: 1;
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-size: 13.5px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+
+    .btn-nav:active {
+      transform: scale(0.98);
+    }
+
+    .btn-prev {
+      background: #f3f4f6;
+      color: #374151;
+      flex: 0.45;
+    }
+
+    .btn-prev:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+
+    .btn-next {
+      background: #1a73e8;
+      color: #ffffff;
+      box-shadow: 0 3px 10px rgba(26, 115, 232, 0.28);
+    }
+
+    /* Animated Walking Path */
+    @keyframes dashFlow {
+      to {
+        stroke-dashoffset: -28;
+      }
+    }
+
+    .walking-route-animated {
+      animation: dashFlow 1.1s linear infinite;
+    }
+
+    /* Pulsing Driver Pin */
+    @keyframes pulseRing {
+      0% { transform: scale(0.85); opacity: 0.85; }
+      100% { transform: scale(2.1); opacity: 0; }
+    }
+
+    .pulse-circle {
+      transform-origin: 410px 330px;
+      animation: pulseRing 2s ease-out infinite;
+    }
+
+    /* Map Typography (Apple/Google Maps Halo Labels) */
+    .map-label {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-weight: 600;
+      fill: #374151;
+      paint-order: stroke;
+      stroke: #ffffff;
+      stroke-width: 3.5px;
+      stroke-linejoin: round;
+    }
+
+    .map-label-sub {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-weight: 500;
+      fill: #6b7280;
+      paint-order: stroke;
+      stroke: #ffffff;
+      stroke-width: 3px;
+      stroke-linejoin: round;
+    }
+
+    .road-label {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-weight: 700;
+      font-size: 11px;
+      fill: #64748b;
+      letter-spacing: 0.8px;
+      paint-order: stroke;
+      stroke: #ffffff;
+      stroke-width: 3px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Floating Signage Reminder & Driver Info -->
+  <div class="top-stack">
+    <div class="signage-banner">
+      <div class="signage-icon">!</div>
+      <div>
+        <strong>Follow Overhead Disney Signs:</strong> Always follow posted <em>&ldquo;Rideshare / Guest Pick-Up&rdquo;</em> signs on-site, even while using this map.
+      </div>
+    </div>
+
+    <div class="driver-card">
+      <div class="driver-left">
+        <div class="driver-avatar">TJ</div>
+        <div class="driver-meta">
+          <h2>Tad Johnson <span class="live-dot" title="Active at Pickup"></span></h2>
+          <p>J Driver &bull; EPCOT Guest Pick-Up Loop (HeiHei Lot)</p>
+        </div>
+      </div>
+      <div class="walk-badge">5&ndash;8 min<br><span style="font-weight:500;font-size:10.5px;">walk</span></div>
+    </div>
+  </div>
+
+  <!-- Right Floating Zoom & Focus Controls -->
+  <div class="map-controls">
+    <div class="ctrl-group">
+      <button class="ctrl-btn" onclick="zoomBy(0.25)" title="Zoom In">+</button>
+      <div class="ctrl-divider"></div>
+      <button class="ctrl-btn" onclick="zoomBy(-0.25)" title="Zoom Out">&minus;</button>
+    </div>
+    <div class="ctrl-group">
+      <button class="ctrl-btn" onclick="focusStep(currentStep)" title="Center Current Step" style="font-size:16px;">&#9678;</button>
+      <div class="ctrl-divider"></div>
+      <button class="ctrl-btn" onclick="resetFullView()" title="Overview" style="font-size:14px;font-weight:700;">ALL</button>
+    </div>
+  </div>
+
+  <!-- Route Option Toggle (Signed Walkway vs Direct Bus Loop Path) -->
+  <div class="route-switcher">
+    <button class="route-tab active" id="tab-signed" onclick="setRoute('signed')">Official Signed Path</button>
+    <button class="route-tab" id="tab-direct" onclick="setRoute('direct')">Past Bus Loops (Direct)</button>
+  </div>
+
+  <!-- Interactive Vector Map of EPCOT North Entrance & HeiHei Pickup Loop -->
+  <div id="map-viewport">
+    <div id="map-transform">
+      <svg width="1400" height="1100" viewBox="0 0 1400 1100" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <filter id="cardShadow" x="-10%" y="-10%" width="120%" height="120%">
+            <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000000" flood-opacity="0.14"/>
+          </filter>
+          <radialGradient id="spaceshipGrad" cx="40%" cy="35%" r="65%">
+            <stop offset="0%" stop-color="#ffffff"/>
+            <stop offset="65%" stop-color="#e2e8f0"/>
+            <stop offset="100%" stop-color="#cbd5e1"/>
+          </radialGradient>
+        </defs>
+
+        <!-- Base Land & Park Greenery -->
+        <rect width="1400" height="1100" fill="#eef2f6"/>
+
+        <!-- Landscaping & Tree Islands -->
+        <path d="M 520,760 Q 700,710 880,760 L 940,1040 L 460,1040 Z" fill="#dcfce7" opacity="0.75"/>
+        <ellipse cx="530" cy="640" rx="85" ry="45" fill="#d1fae5"/>
+        <ellipse cx="870" cy="640" rx="85" ry="45" fill="#d1fae5"/>
+        <ellipse cx="330" cy="520" rx="60" ry="95" fill="#d1fae5"/>
+        <ellipse cx="1070" cy="520" rx="60" ry="95" fill="#d1fae5"/>
+
+        <!-- Main Pedestrian Entrance Plaza -->
+        <path d="M 575,540 L 825,540 L 865,770 L 535,770 Z" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+
+        <!-- Spaceship Earth (South / Bottom Center) -->
+        <g filter="url(#cardShadow)">
+          <circle cx="700" cy="875" r="78" fill="url(#spaceshipGrad)" stroke="#94a3b8" stroke-width="2"/>
+          <!-- Geodesic Pattern Lines -->
+          <ellipse cx="700" cy="875" rx="78" ry="26" fill="none" stroke="#cbd5e1" stroke-width="1.2"/>
+          <ellipse cx="700" cy="875" rx="78" ry="54" fill="none" stroke="#cbd5e1" stroke-width="1.2"/>
+          <ellipse cx="700" cy="875" rx="28" ry="78" fill="none" stroke="#cbd5e1" stroke-width="1.2"/>
+          <ellipse cx="700" cy="875" rx="58" ry="78" fill="none" stroke="#cbd5e1" stroke-width="1.2"/>
+        </g>
+        <text x="700" y="880" text-anchor="middle" font-size="14" class="map-label">Spaceship Earth</text>
+        <text x="700" y="896" text-anchor="middle" font-size="11" class="map-label-sub">EPCOT Icon</text>
+
+        <!-- Entrance Fountain -->
+        <rect x="668" y="742" width="64" height="24" rx="12" fill="#bae6fd" stroke="#38bdf8" stroke-width="1.5"/>
+        <text x="700" y="734" text-anchor="middle" font-size="10.5" class="map-label-sub">Entrance Fountain</text>
+
+        <!-- EPCOT Main Entrance / Exit Tapstiles -->
+        <g filter="url(#cardShadow)">
+          <rect x="605" y="672" width="190" height="26" rx="6" fill="#ffffff" stroke="#64748b" stroke-width="1.5"/>
+          <!-- Turnstile Gate Ticks -->
+          <line x1="635" y1="674" x2="635" y2="696" stroke="#94a3b8" stroke-width="2"/>
+          <line x1="665" y1="674" x2="665" y2="696" stroke="#94a3b8" stroke-width="2"/>
+          <line x1="700" y1="674" x2="700" y2="696" stroke="#94a3b8" stroke-width="2"/>
+          <line x1="735" y1="674" x2="735" y2="696" stroke="#94a3b8" stroke-width="2"/>
+          <line x1="765" y1="674" x2="765" y2="696" stroke="#94a3b8" stroke-width="2"/>
+        </g>
+        <text x="700" y="662" text-anchor="middle" font-size="13" class="map-label">EPCOT Main Exit / Tapstiles</text>
+
+        <!-- Security Screening Tents -->
+        <rect x="620" y="595" width="65" height="22" rx="5" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.2"/>
+        <rect x="715" y="595" width="65" height="22" rx="5" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.2"/>
+        <text x="700" y="586" text-anchor="middle" font-size="11" class="map-label-sub">Security Plaza</text>
+
+        <!-- Elevated Monorail Beam & Station -->
+        <path d="M 120,480 Q 450,515 700,520 Q 950,515 1280,480" fill="none" stroke="#94a3b8" stroke-width="10" stroke-linecap="round"/>
+        <path d="M 120,480 Q 450,515 700,520 Q 950,515 1280,480" fill="none" stroke="#f1f5f9" stroke-width="5" stroke-dasharray="14,6"/>
+        <rect x="635" y="504" width="130" height="30" rx="8" fill="#ffffff" stroke="#64748b" stroke-width="1.5" filter="url(#cardShadow)"/>
+        <text x="700" y="523" text-anchor="middle" font-size="11.5" class="map-label">Monorail Station</text>
+
+        <!-- West Side: Disney Resort Bus Loops (Left when facing out of park) -->
+        <g>
+          <rect x="405" y="395" width="215" height="105" rx="16" fill="#e2e8f0" stroke="#cbd5e1" stroke-width="2"/>
+          <!-- Bus Islands -->
+          <rect x="425" y="412" width="175" height="14" rx="5" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+          <rect x="425" y="440" width="175" height="14" rx="5" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+          <rect x="425" y="468" width="175" height="14" rx="5" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+          <text x="512" y="384" text-anchor="middle" font-size="12.5" class="map-label">Resort Bus Loops (West)</text>
+          <text x="512" y="451" text-anchor="middle" font-size="10.5" class="map-label-sub">Bays 1&ndash;18</text>
+        </g>
+
+        <!-- East Side: Disney Resort Bus Loops & Charter/Tram -->
+        <g>
+          <rect x="780" y="395" width="215" height="105" rx="16" fill="#e2e8f0" stroke="#cbd5e1" stroke-width="2"/>
+          <rect x="800" y="412" width="175" height="14" rx="5" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+          <rect x="800" y="440" width="175" height="14" rx="5" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+          <rect x="800" y="468" width="175" height="14" rx="5" fill="#ffffff" stroke="#94a3b8" stroke-width="1"/>
+          <text x="887" y="384" text-anchor="middle" font-size="12.5" class="map-label">Resort Bus Loops (East)</text>
+          <text x="887" y="451" text-anchor="middle" font-size="10.5" class="map-label-sub">Bays 19&ndash;34</text>
+        </g>
+
+        <!-- Center Tram Loading Zone (North of Monorail) -->
+        <rect x="640" y="395" width="120" height="75" rx="12" fill="#f1f5f9" stroke="#cbd5e1" stroke-width="1.5"/>
+        <text x="700" y="430" text-anchor="middle" font-size="11.5" class="map-label">Parking Tram</text>
+        <text x="700" y="445" text-anchor="middle" font-size="10.5" class="map-label-sub">Load / Unload</text>
+
+        <!-- North Parking Lots: HeiHei (West/Left) & Moana (East/Right) -->
+        <!-- HeiHei Parking Lot -->
+        <g>
+          <rect x="150" y="130" width="490" height="175" rx="16" fill="#dfe5ec" stroke="#cbd5e1" stroke-width="2"/>
+          <!-- Parking Row Stripes -->
+          <line x1="175" y1="165" x2="615" y2="165" stroke="#ffffff" stroke-width="2" stroke-dasharray="8,8"/>
+          <line x1="175" y1="200" x2="615" y2="200" stroke="#ffffff" stroke-width="2" stroke-dasharray="8,8"/>
+          <line x1="175" y1="235" x2="615" y2="235" stroke="#ffffff" stroke-width="2" stroke-dasharray="8,8"/>
+          <line x1="175" y1="270" x2="615" y2="270" stroke="#ffffff" stroke-width="2" stroke-dasharray="8,8"/>
+          <text x="395" y="218" text-anchor="middle" font-size="16" class="map-label">HeiHei Parking Lot</text>
+          <text x="395" y="236" text-anchor="middle" font-size="11.5" class="map-label-sub">Preferred &amp; EV Charging Rows</text>
+        </g>
+
+        <!-- Moana Parking Lot -->
+        <g>
+          <rect x="760" y="130" width="490" height="175" rx="16" fill="#dfe5ec" stroke="#cbd5e1" stroke-width="2"/>
+          <line x1="785" y1="165" x2="1225" y2="165" stroke="#ffffff" stroke-width="2" stroke-dasharray="8,8"/>
+          <line x1="785" y1="200" x2="1225" y2="200" stroke="#ffffff" stroke-width="2" stroke-dasharray="8,8"/>
+          <line x1="785" y1="235" x2="1225" y2="235" stroke="#ffffff" stroke-width="2" stroke-dasharray="8,8"/>
+          <line x1="785" y1="270" x2="1225" y2="270" stroke="#ffffff" stroke-width="2" stroke-dasharray="8,8"/>
+          <text x="1005" y="218" text-anchor="middle" font-size="16" class="map-label">Moana Parking Lot</text>
+          <text x="1005" y="236" text-anchor="middle" font-size="11.5" class="map-label-sub">Standard Guest Parking</text>
+        </g>
+
+        <!-- Access Roadways (Epcot Center Dr / Pickup Loop Lane) -->
+        <path d="M 90,340 L 1310,340" fill="none" stroke="#cbd5e1" stroke-width="32" stroke-linecap="round"/>
+        <path d="M 90,340 L 1310,340" fill="none" stroke="#ffffff" stroke-width="26" stroke-linecap="round"/>
+        <text x="980" y="344" text-anchor="middle" class="road-label">GUEST DROP-OFF &amp; BUS ACCESS LANE</text>
+
+        <!-- Dedicated Rideshare / Guest Pick-Up Loop Curb (Front of HeiHei Lot) -->
+        <g filter="url(#cardShadow)">
+          <rect x="285" y="312" width="250" height="36" rx="18" fill="#dbeafe" stroke="#2563eb" stroke-width="2.5"/>
+        </g>
+        <text x="410" y="298" text-anchor="middle" font-size="13.5" class="map-label" style="fill:#1d4ed8;">Rideshare &amp; Guest Pick-Up Loop</text>
+
+        <!-- Overhead Sign Callouts along the Walk -->
+        <g transform="translate(602, 548)">
+          <rect x="0" y="0" width="96" height="20" rx="5" fill="#4c1d95"/>
+          <text x="48" y="13.5" text-anchor="middle" font-size="9.5" font-weight="700" fill="#ffffff">SIGN: RIDESHARE</text>
+        </g>
+        <g transform="translate(470, 355)">
+          <rect x="0" y="0" width="96" height="20" rx="5" fill="#4c1d95"/>
+          <text x="48" y="13.5" text-anchor="middle" font-size="9.5" font-weight="700" fill="#ffffff">SIGN: PICK-UP</text>
+        </g>
+
+        <!-- Route 1: Official Disney Signed Walkway (Under Monorail -> Left past Bus Loops -> HeiHei Curb) -->
+        <g id="route-signed-group">
+          <path d="M 700,670 L 700,565 L 625,535 L 385,515 L 385,355 L 410,335"
+                fill="none" stroke="#93c5fd" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M 700,670 L 700,565 L 625,535 L 385,515 L 385,355 L 410,335"
+                fill="none" stroke="#1a73e8" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"
+                stroke-dasharray="10,10" class="walking-route-animated"/>
+        </g>
+
+        <!-- Route 2: Direct Path Past Bus Loops (Hidden by default) -->
+        <g id="route-direct-group" style="display:none;">
+          <path d="M 700,670 L 650,565 L 625,495 L 625,355 L 410,335"
+                fill="none" stroke="#93c5fd" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M 700,670 L 650,565 L 625,495 L 625,355 L 410,335"
+                fill="none" stroke="#1a73e8" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"
+                stroke-dasharray="10,10" class="walking-route-animated"/>
+        </g>
+
+        <!-- Start Pin: EPCOT Exit -->
+        <g transform="translate(700, 670)">
+          <circle cx="0" cy="0" r="10" fill="#1a73e8" stroke="#ffffff" stroke-width="3"/>
+          <rect x="-42" y="14" width="84" height="22" rx="11" fill="#1f2937" filter="url(#cardShadow)"/>
+          <text x="0" y="28.5" text-anchor="middle" font-size="11" font-weight="700" fill="#ffffff">START: Exit</text>
+        </g>
+
+        <!-- Destination Pin: Tad Johnson at HeiHei Pickup Loop -->
+        <g>
+          <circle cx="410" cy="330" r="18" fill="#10b981" class="pulse-circle"/>
+          <circle cx="410" cy="330" r="12" fill="#059669" stroke="#ffffff" stroke-width="3"/>
+          <g transform="translate(410, 266)" filter="url(#cardShadow)">
+            <rect x="-72" y="0" width="144" height="26" rx="13" fill="#059669"/>
+            <text x="0" y="17" text-anchor="middle" font-size="11.5" font-weight="700" fill="#ffffff">Tad Johnson &bull; Pickup</text>
+          </g>
+        </g>
+
+      </svg>
+    </div>
+  </div>
+
+  <!-- Bottom Step-by-Step Navigation Card -->
+  <div class="bottom-sheet">
+    <div class="step-header">
+      <span class="step-pill" id="step-counter">Step 1 of 4</span>
+      <div class="step-dots" id="step-dots">
+        <span class="dot active" onclick="goToStep(0)"></span>
+        <span class="dot" onclick="goToStep(1)"></span>
+        <span class="dot" onclick="goToStep(2)"></span>
+        <span class="dot" onclick="goToStep(3)"></span>
+      </div>
+    </div>
+    <div class="step-title" id="step-title">Exit EPCOT Main Gates</div>
+    <div class="step-desc" id="step-desc">Walk out through the main tapstiles with Spaceship Earth behind you and continue straight under the Monorail beam.</div>
+    <div class="step-actions">
+      <button class="btn-nav btn-prev" id="btn-prev" onclick="changeStep(-1)" disabled>Back</button>
+      <button class="btn-nav btn-next" id="btn-next" onclick="changeStep(1)">Next Step</button>
+    </div>
+  </div>
+
+  <script>
+    const stepsSigned = [
+      {
+        title: "1. Exit EPCOT Main Gates",
+        desc: "Pass through the main entrance tapstiles (Spaceship Earth behind you) and walk straight ahead toward the Monorail station.",
+        x: 700, y: 660, scale: 1.25
+      },
+      {
+        title: "2. Angle Left Under the Monorail",
+        desc: "Watch for the purple/white overhead signs reading 'Rideshare / Guest Pick-Up' and bear left past the West Resort Bus Loops.",
+        x: 540, y: 515, scale: 1.3
+      },
+      {
+        title: "3. Walk Along the West Bus Walkway",
+        desc: "Stay on the paved pedestrian walkway along the outer edge of the West Bus Loops heading toward the front of the parking lot.",
+        x: 420, y: 430, scale: 1.35
+      },
+      {
+        title: "4. Arrive at HeiHei Lot Pickup Curb",
+        desc: "Meet Tad Johnson at the dedicated Rideshare & Guest Pick-Up loop right in front of the HeiHei Parking Lot.",
+        x: 410, y: 315, scale: 1.45
+      }
+    ];
+
+    const stepsDirect = [
+      {
+        title: "1. Exit EPCOT Main Gates",
+        desc: "Pass through the main entrance tapstiles and head straight toward the central transportation plaza.",
+        x: 700, y: 660, scale: 1.25
+      },
+      {
+        title: "2. Walk Past Bus Loops 1–5",
+        desc: "Cut between the West Bus Loops and the Parking Tram loading zone, following overhead Guest Pick-Up signs.",
+        x: 615, y: 465, scale: 1.3
+      },
+      {
+        title: "3. Turn Left at the Pickup Lane",
+        desc: "Cross at the marked pedestrian crosswalk at the end of the bus loops and turn left along the HeiHei Lot sidewalk.",
+        x: 510, y: 345, scale: 1.35
+      },
+      {
+        title: "4. Arrive at HeiHei Lot Pickup Curb",
+        desc: "Meet Tad Johnson along the front curb of the HeiHei Parking Lot.",
+        x: 410, y: 315, scale: 1.45
+      }
+    ];
+
+    let activeRoute = 'signed';
+    let currentStep = 0;
+
+    // Pan & Zoom State
+    let scale = 1.15;
+    let translateX = 0;
+    let translateY = 0;
+    let isDragging = false;
+    let startX = 0;
+    let startY = 0;
+
+    const viewport = document.getElementById('map-viewport');
+    const transformEl = document.getElementById('map-transform');
+
+    function applyTransform(animate = true) {
+      if (animate) {
+        transformEl.classList.remove('no-transition');
+      } else {
+        transformEl.classList.add('no-transition');
+      }
+      transformEl.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+    }
+
+    function centerOnMapPoint(mapX, mapY, targetScale = scale, animate = true) {
+      scale = Math.min(Math.max(targetScale, 0.55), 2.4);
+      const vw = viewport.clientWidth;
+      const vh = viewport.clientHeight;
+      translateX = (vw / 2) - (mapX * scale);
+      translateY = (vh / 2) - (mapY * scale) - 20;
+      applyTransform(animate);
+    }
+
+    function zoomBy(delta) {
+      const vw = viewport.clientWidth;
+      const vh = viewport.clientHeight;
+      const centerMapX = ((vw / 2) - translateX) / scale;
+      const centerMapY = ((vh / 2) - translateY) / scale;
+      centerOnMapPoint(centerMapX, centerMapY, scale + delta, true);
+    }
+
+    function resetFullView() {
+      centerOnMapPoint(570, 520, 0.85, true);
+    }
+
+    function setRoute(route) {
+      activeRoute = route;
+      document.getElementById('tab-signed').classList.toggle('active', route === 'signed');
+      document.getElementById('tab-direct').classList.toggle('active', route === 'direct');
+      document.getElementById('route-signed-group').style.display = route === 'signed' ? 'block' : 'none';
+      document.getElementById('route-direct-group').style.display = route === 'direct' ? 'block' : 'none';
+      goToStep(currentStep);
+    }
+
+    function goToStep(index) {
+      const list = activeRoute === 'signed' ? stepsSigned : stepsDirect;
+      currentStep = Math.max(0, Math.min(index, list.length - 1));
+      const step = list[currentStep];
+
+      document.getElementById('step-counter').textContent = `Step ${currentStep + 1} of ${list.length}`;
+      document.getElementById('step-title').textContent = step.title;
+      document.getElementById('step-desc').textContent = step.desc;
+
+      document.getElementById('btn-prev').disabled = currentStep === 0;
+      document.getElementById('btn-next').textContent = currentStep === list.length - 1 ? "Arrived at Tad" : "Next Step";
+
+      const dots = document.querySelectorAll('.dot');
+      dots.forEach((dot, idx) => dot.classList.toggle('active', idx === currentStep));
+
+      centerOnMapPoint(step.x, step.y, step.scale, true);
+    }
+
+    function changeStep(delta) {
+      const list = activeRoute === 'signed' ? stepsSigned : stepsDirect;
+      if (currentStep + delta >= list.length) {
+        goToStep(list.length - 1);
+      } else {
+        goToStep(currentStep + delta);
+      }
+    }
+
+    function focusStep(idx) {
+      goToStep(idx);
+    }
+
+    // Mouse Drag Panning
+    viewport.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      startX = e.clientX - translateX;
+      startY = e.clientY - translateY;
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      translateX = e.clientX - startX;
+      translateY = e.clientY - startY;
+      applyTransform(false);
+    });
+
+    window.addEventListener('mouseup', () => {
+      isDragging = false;
+    });
+
+    // Touch Panning & Pinch-to-Zoom
+    let initialPinchDist = null;
+    let initialScale = 1;
+
+    viewport.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) {
+        isDragging = true;
+        startX = e.touches[0].clientX - translateX;
+        startY = e.touches[0].clientY - translateY;
+      } else if (e.touches.length === 2) {
+        isDragging = false;
+        initialPinchDist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        initialScale = scale;
+      }
+    }, { passive: true });
+
+    viewport.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 1 && isDragging) {
+        translateX = e.touches[0].clientX - startX;
+        translateY = e.touches[0].clientY - startY;
+        applyTransform(false);
+      } else if (e.touches.length === 2 && initialPinchDist) {
+        const dist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        const mapX = (midX - translateX) / scale;
+        const mapY = (midY - translateY) / scale;
+
+        scale = Math.min(Math.max(initialScale * (dist / initialPinchDist), 0.55), 2.4);
+        translateX = midX - mapX * scale;
+        translateY = midY - mapY * scale;
+        applyTransform(false);
+      }
+    }, { passive: true });
+
+    viewport.addEventListener('touchend', () => {
+      isDragging = false;
+      initialPinchDist = null;
+    });
+
+    // Mouse Wheel Zoom
+    viewport.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const mapX = (e.clientX - translateX) / scale;
+      const mapY = (e.clientY - translateY) / scale;
+      const delta = e.deltaY < 0 ? 0.15 : -0.15;
+      scale = Math.min(Math.max(scale + delta, 0.55), 2.4);
+      translateX = e.clientX - mapX * scale;
+      translateY = e.clientY - mapY * scale;
+      applyTransform(false);
+    }, { passive: false });
+
+    // Initialize View on Load
+    window.addEventListener('load', () => goToStep(0));
+    window.addEventListener('resize', () => goToStep(currentStep));
+  </script>
+</body>
+</html>
